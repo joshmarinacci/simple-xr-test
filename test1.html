@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Hello, World! • A-Frame</title>
+    <meta name="description" content="Hello, World! • A-Frame">
+    <script src="./three.min.js"></script>
+    <script src="./webxr-polyfill.js"></script>
+    <script src="./aframe-master.js"></script>
+    <script>
+        AFRAME.registerComponent('webxr-controls', {
+            init: function () {
+	            this.scene = document.querySelector('a-scene');
+	            console.log("scene = ", this.scene);
+	            this.scene.renderer.setClearColor(0xffffff, 0);
+				this.createVirtualReality = false;
+				this.frameOfReferenceTypes = ['stage'];
+				this.hmdQuaternion = new THREE.Quaternion();
+				this.hmdEuler = new THREE.Euler();
+	            
+                console.log("XR = ", navigator.XR);
+				this.hasWebkit = typeof window.webkit !== 'undefined'
+				console.log("checking webkit");
+				if(this.hasWebkit) this.setupWebkitUI()
+				
+				this.rotation = {};
+                
+				if(typeof navigator.XR === 'undefined'){
+					this.showMessage('No WebXR API found')
+					return
+				}
+
+                navigator.XR.getDisplays().then(displays => {
+                    if (displays.length === 0) {
+                        this.showMessage('No displays are available');
+                        return;
+                    }
+                    this.display = displays[0]; // production code would allow the user to choose, this code assumes that this is a FlatDisplay
+                    console.log("got a display",this.display);
+                    this.display.requestSession({
+                        exclusive: this.createVirtualReality,
+                        type: this.createVirtualReality ? XRSession.REALITY : XRSession.AUGMENTATION
+                    }).then(session => {
+	                    console.log("here")
+                        this.handleNewSession(session)
+                    }).catch(err => {
+                        console.error('Error requesting session', err)
+//                        this.showMessage('Could not initiate the session')
+                    })
+                }).catch(err => {
+                    console.error('Could not get XR displays', err)
+                })
+
+            },
+            tick: function () {
+//                 var rotation = this.el.getAttribute('rotation');
+//                rotation.z += 0.1;
+//                 this.el.setAttribute('rotation', rotation);
+            },
+            handleNewSession:function(session) {
+                console.log("hanlding a new rockin session");
+                this.session = session
+                this.session.depthNear = 0.1
+                this.session.depthFar = 1000.0
+				// Create a canvas and context for the layer
+// 				let glCanvas = document.createElement('canvas')
+// 				let glContext = glCanvas.getContext('webgl')
+// 				if(glContext === null){
+// 					throw 'Could not create GL context'
+// 				}
+// 				this.session.baseLayer = new XRWebGLLayer(this.session, glContext)
+				
+				
+				if(this.createVirtualReality){
+					const reality = this.session.createVirtualReality('VR Example', false)
+		
+					// Reqest the Reality change and then set up its XRLayer
+					this.session.requestRealityChange(reality).then(() => {
+						this.session.requestFrame(frame => { this.handleFrame(frame) })
+					}).error(err => {
+						console.error('Could not change realities')
+					})
+				} else {
+					// The session's reality defaults to the most recently used shared reality
+					this.session.requestFrame(frame => { this.handleFrame(frame) })
+				}
+				
+                
+            },
+			setupWebkitUI:function(){
+				console.log("setting up webkit");
+				this.webkitControlEl = document.createElement('div')
+				this.el.appendChild(this.webkitControlEl)
+				this.webkitControlEl.setAttribute('class', 'webkit-control')
+				this.locationInput = document.createElement('input')
+				this.locationInput.style.width = '50%'
+				this.locationInput.value = '' + document.location.href
+				this.webkitControlEl.appendChild(this.locationInput)
+				this.locationButton = document.createElement('button')
+				this.locationButton.innerHTML = 'load'
+				this.webkitControlEl.appendChild(this.locationButton)
+		
+				this.locationButton.addEventListener('click', ev => {
+					window.webkit.messageHandlers.loadUrl.postMessage({
+			            url: this.locationInput.value
+			        })
+				})
+			},
+			handleFrame:function(frame) {
+				const nextFrameRequest = this.session.requestFrame(frame => { this.handleFrame(frame) })
+				let sceneCoordinateSystem = frame.getCoordinateSystem(...this.frameOfReferenceTypes)					
+				if(sceneCoordinateSystem === null){
+					console.log("could not get a usable coordinate system");
+					this.session.cancelFrame(nextFrameRequest)
+					this.session.endSession()
+					return
+				}
+				let scenePose = frame.getViewPose(sceneCoordinateSystem)
+				console.log(scenePose);
+				let headPose = frame.getViewPose(frame.getCoordinateSystem(XRCoordinateSystem.HEAD_MODEL))
+				var view = frame.views[0];
+				//update camera
+				
+				
+				var camera = this.el.sceneEl.camera;
+// 				camera.matrix.fromArray(headPose.getViewMatrix(view))
+// 				camera.updateMatrixWorld(true);
+ 			    var scene = this.scene.object3D;
+
+				for(const view of frame.views){
+					//throttledConsoleLog('pose', ...headPose._position)
+		            camera.projectionMatrix.fromArray(view.projectionMatrix)
+		
+					scene.matrix.fromArray(headPose.getViewMatrix(view))
+					scene.updateMatrixWorld(true)
+		
+					//const viewport = view.getViewport(this.session.baseLayer)
+					//this.renderer.setViewport(viewport.x, viewport.y, viewport.width, viewport.height)
+					//this.renderer.render(this.scene, this.camera)
+				}
+
+
+				//console.log("matrix = ", camera.matrix);
+				//camera.projectionMatrix.fromArray(scenePose.getViewMatrix(view));
+			    //camera.updateMatrixWorld();
+// 			    var scene = this.scene.object3D;
+//   				scene.matrix.fromArray(headPose.getViewMatrix(view));
+//   				scene.updateMatrixWorld(true);
+  				
+  				/*
+  				if(false) {
+	  				console.log("view",view);
+					this.session.cancelFrame(nextFrameRequest)
+					this.session.endSession()
+					throw new Error();
+  				}
+  				*/
+  				/*
+  				var radToDeg = THREE.Math.radToDeg;
+				var hmdEuler = new THREE.Euler();
+  				hmdEuler.setFromQuaternion(headPose.getViewMatrix(view), 'YXZ');
+  				var rotation = this.rotation;
+  				rotation.x = radToDeg(hmdEuler.x);
+  				rotation.y = radToDeg(hmdEuler.y);
+  				rotation.z = radToDeg(hmdEuler.z);
+  				this.el.setAttribute('rotation',rotation);
+  				*/
+  				
+			}
+            
+
+        });
+    </script>
+    <style type="text/css">
+
+	</style>
+</head>
+<body>
+	<div id="my-scene">
+<a-scene vr-mode-ui="enabled:false">
+    <a-box position="-1 0.5 -3" rotation="0 45 0" color="#4CC3D9" shadow></a-box>
+    <a-cylinder position="1 0.75 -3" radius="0.5" height="1.5" color="#FFC65D" shadow></a-cylinder>
+    <a-camera webxr-controls wasd-controls-enabled="false" look-controls="enabled:false"></a-camera>
+</a-scene>
+	</div>
+</body>
+</html>
