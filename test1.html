@@ -15,15 +15,15 @@
 	            this.scene.renderer.setClearColor(0xffffff, 0);
 				this.createVirtualReality = false;
 				this.frameOfReferenceTypes = ['stage'];
-				this.hmdQuaternion = new THREE.Quaternion();
-				this.hmdEuler = new THREE.Euler();
+// 				this.hmdQuaternion = new THREE.Quaternion();
+// 				this.hmdEuler = new THREE.Euler();
 	            
-                console.log("XR = ", navigator.XR);
+//                 console.log("XR = ", navigator.XR);
 				this.hasWebkit = typeof window.webkit !== 'undefined'
-				console.log("checking webkit");
+// 				console.log("checking webkit");
 				if(this.hasWebkit) this.setupWebkitUI()
 				
-				this.rotation = {};
+// 				this.rotation = {};
                 
 				if(typeof navigator.XR === 'undefined'){
 					this.showMessage('No WebXR API found')
@@ -63,13 +63,6 @@
                 this.session.depthNear = 0.1
                 this.session.depthFar = 1000.0
 				// Create a canvas and context for the layer
-// 				let glCanvas = document.createElement('canvas')
-// 				let glContext = glCanvas.getContext('webgl')
-// 				if(glContext === null){
-// 					throw 'Could not create GL context'
-// 				}
-// 				this.session.baseLayer = new XRWebGLLayer(this.session, glContext)
-				
 				
 				if(this.createVirtualReality){
 					const reality = this.session.createVirtualReality('VR Example', false)
@@ -115,57 +108,28 @@
 					this.session.endSession()
 					return
 				}
-				let scenePose = frame.getViewPose(sceneCoordinateSystem)
-				console.log(scenePose);
+				let stagePose = frame.getViewPose(sceneCoordinateSystem)
 				let headPose = frame.getViewPose(frame.getCoordinateSystem(XRCoordinateSystem.HEAD_MODEL))
-				var view = frame.views[0];
-				//update camera
 				
-				
-				var camera = this.el.sceneEl.camera;
-// 				camera.matrix.fromArray(headPose.getViewMatrix(view))
-// 				camera.updateMatrixWorld(true);
  			    var scene = this.scene.object3D;
 
+				scene.matrixAutoUpdate = false
+				scene.matrix.fromArray(stagePose.poseModelMatrix)
+				scene.matrix.elements[12] -= headPose.poseModelMatrix[12]
+				scene.matrix.elements[13] -= headPose.poseModelMatrix[13]
+				scene.matrix.elements[14] -= headPose.poseModelMatrix[14]
+				scene.updateMatrixWorld(true)				
+				/*
+				var view = frame.views[0];
+
 				for(const view of frame.views){
-					//throttledConsoleLog('pose', ...headPose._position)
-		            camera.projectionMatrix.fromArray(view.projectionMatrix)
-		
-					scene.matrix.fromArray(headPose.getViewMatrix(view))
+					var mx = headPose.getViewMatrix(view);
+					scene.matrix.fromArray(mx)
 					scene.updateMatrixWorld(true)
-		
-					//const viewport = view.getViewport(this.session.baseLayer)
-					//this.renderer.setViewport(viewport.x, viewport.y, viewport.width, viewport.height)
-					//this.renderer.render(this.scene, this.camera)
+					scene.rotation
 				}
-
-
-				//console.log("matrix = ", camera.matrix);
-				//camera.projectionMatrix.fromArray(scenePose.getViewMatrix(view));
-			    //camera.updateMatrixWorld();
-// 			    var scene = this.scene.object3D;
-//   				scene.matrix.fromArray(headPose.getViewMatrix(view));
-//   				scene.updateMatrixWorld(true);
-  				
-  				/*
-  				if(false) {
-	  				console.log("view",view);
-					this.session.cancelFrame(nextFrameRequest)
-					this.session.endSession()
-					throw new Error();
-  				}
-  				*/
-  				/*
-  				var radToDeg = THREE.Math.radToDeg;
-				var hmdEuler = new THREE.Euler();
-  				hmdEuler.setFromQuaternion(headPose.getViewMatrix(view), 'YXZ');
-  				var rotation = this.rotation;
-  				rotation.x = radToDeg(hmdEuler.x);
-  				rotation.y = radToDeg(hmdEuler.y);
-  				rotation.z = radToDeg(hmdEuler.z);
-  				this.el.setAttribute('rotation',rotation);
-  				*/
-  				
+				*/
+				
 			}
             
 
