@@ -8,23 +8,24 @@
     <script src="./webxr-polyfill.js"></script>
     <script src="./aframe-master.js"></script>
     <script>
+	    var logCount = 0;
+	    function logSlow(obj) {
+		    if(logCount % 60 == 0) console.log(obj);
+		    logCount++;
+	    }
         AFRAME.registerComponent('webxr-controls', {
             init: function () {
 	            this.scene = document.querySelector('a-scene');
-	            console.log("scene = ", this.scene);
+	            this.camera = document.getElementById("camera");
 	            this.scene.renderer.setClearColor(0xffffff, 0);
 				this.createVirtualReality = false;
 				this.frameOfReferenceTypes = ['stage'];
-// 				this.hmdQuaternion = new THREE.Quaternion();
-// 				this.hmdEuler = new THREE.Euler();
+				
+				this.deg = 0;
 	            
-//                 console.log("XR = ", navigator.XR);
 				this.hasWebkit = typeof window.webkit !== 'undefined'
-// 				console.log("checking webkit");
 				if(this.hasWebkit) this.setupWebkitUI()
 				
-// 				this.rotation = {};
-                
 				if(typeof navigator.XR === 'undefined'){
 					this.showMessage('No WebXR API found')
 					return
@@ -53,9 +54,18 @@
 
             },
             tick: function () {
-//                 var rotation = this.el.getAttribute('rotation');
-//                rotation.z += 0.1;
-//                 this.el.setAttribute('rotation', rotation);
+	            /*
+                 var rotation = this.el.getAttribute('rotation');
+                rotation.z += 0.1;
+                 this.el.setAttribute('rotation', rotation);
+                 */
+				//var group = this.el.object3D;				
+				/*
+				this.deg += 1;
+				var rot = this.el.getAttribute("rotation");
+				rot.y = this.deg;
+				this.el.setAttribute("rotation", rot);
+				*/
             },
             handleNewSession:function(session) {
                 console.log("hanlding a new rockin session");
@@ -100,36 +110,67 @@
 				})
 			},
 			handleFrame:function(frame) {
+				//schedule the next frame first
 				const nextFrameRequest = this.session.requestFrame(frame => { this.handleFrame(frame) })
-				let sceneCoordinateSystem = frame.getCoordinateSystem(...this.frameOfReferenceTypes)					
-				if(sceneCoordinateSystem === null){
+				
+				//get the coordinate system
+				let stageCoordinateSystem = frame.getCoordinateSystem(...this.frameOfReferenceTypes)					
+				if(stageCoordinateSystem === null){
 					console.log("could not get a usable coordinate system");
 					this.session.cancelFrame(nextFrameRequest)
 					this.session.endSession()
 					return
 				}
-				let stagePose = frame.getViewPose(sceneCoordinateSystem)
+				
+				//get poses for the stage and head
+				let stagePose = frame.getViewPose(stageCoordinateSystem)
 				let headPose = frame.getViewPose(frame.getCoordinateSystem(XRCoordinateSystem.HEAD_MODEL))
-				
- 			    var scene = this.scene.object3D;
 
+				this.stageGroup = this.el.object3D;
+				//logSlow(headPose.poseModelMatrix);
+				
+				var trans_1 = new THREE.Vector3();
+				var rot_1 = new THREE.Quaternion();
+				var scale_1 = new THREE.Vector3();
+				var m2 = new THREE.Matrix4();
+				m2.fromArray(headPose.poseModelMatrix);
+				m2.decompose(trans_1, rot_1, scale_1);
+				logSlow(rot_1);
+				rot_1.x = -rot_1.x;
+				rot_1.y = -rot_1.y;
+				m2.compose(trans_1, rot_1, scale_1);
+				
+				var stage = this.el.object3D;
+				//update the stage group. this rotates all content around except for the camera
+				stage.matrixAutoUpdate = false
+				stage.matrix.copy(m2);//headPose.poseModelMatrix);
+				stage.updateMatrixWorld(true)
+
+				
+				
+				
+				var view = frame.views[0];	
+				//this.camera.object3D.projectionMatrix.fromArray(view.projectionMatrix);
+				var scene = this.scene.object3D;
 				scene.matrixAutoUpdate = false
-				scene.matrix.fromArray(stagePose.poseModelMatrix)
-				scene.matrix.elements[12] -= headPose.poseModelMatrix[12]
-				scene.matrix.elements[13] -= headPose.poseModelMatrix[13]
-				scene.matrix.elements[14] -= headPose.poseModelMatrix[14]
-				scene.updateMatrixWorld(true)				
-				/*
-				var view = frame.views[0];
-
-				for(const view of frame.views){
-					var mx = headPose.getViewMatrix(view);
-					scene.matrix.fromArray(mx)
-					scene.updateMatrixWorld(true)
-					scene.rotation
-				}
-				*/
+				//scene.matrix.fromArray(stagePose.getViewMatrix(view));
+				scene.updateMatrixWorld(true)
 				
+				
+				/*
+				var scene = this.scene.object3D;
+				scene.matrixAutoUpdate = false
+				for(const view of frame.views){
+					// Each XRView has its own projection matrix, so set the camera to use that
+					//this.camera.projectionMatrix.fromArray(view.projectionMatrix)
+		
+					// Set the scene's view matrix using the head pose
+					scene.matrix.fromArray(headPose.getViewMatrix(view))
+					scene.updateMatrixWorld(true)
+		
+					// Set up the renderer to the XRView's viewport and then render
+				}
+				*/				
 			}
             
 
@@ -141,11 +182,13 @@
 </head>
 <body>
 	<div id="my-scene">
-<a-scene vr-mode-ui="enabled:false">
-    <a-box position="-1 0.5 -3" rotation="0 45 0" color="#4CC3D9" shadow></a-box>
-    <a-cylinder position="1 0.75 -3" radius="0.5" height="1.5" color="#FFC65D" shadow></a-cylinder>
-    <a-camera webxr-controls wasd-controls-enabled="false" look-controls="enabled:false"></a-camera>
-</a-scene>
+		<a-scene vr-mode-ui="enabled:false">
+		    <a-camera  wasd-controls-enabled="false" look-controls="enabled:false" id="camera"></a-camera>
+			<a-entity webxr-controls position="0 0 0" rotation="0 0 0">
+			    <a-box id='box' position="-1 0.5 -3" rotation="0 45 0" color="#4CC3D9" shadow></a-box>
+			    <a-cylinder position="1 0.75 -3" radius="0.5" height="1.5" color="#FFC65D" shadow></a-cylinder>
+			</a-entity>
+		</a-scene>
 	</div>
 </body>
 </html>
