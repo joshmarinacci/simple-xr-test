@@ -153,7 +153,7 @@
 				//this.camera.object3D.projectionMatrix.fromArray(view.projectionMatrix);
 				var scene = this.scene.object3D;
 				scene.matrixAutoUpdate = false
-				//scene.matrix.fromArray(stagePose.getViewMatrix(view));
+				scene.matrix.fromArray(stagePose.getViewMatrix(view));
 				scene.updateMatrixWorld(true)
 				
 				
